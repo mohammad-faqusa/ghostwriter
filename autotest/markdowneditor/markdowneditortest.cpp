@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <QDebug>
 #include <QApplication>
 #include <QTest>
 #include <QTextCursor>
@@ -7,6 +8,7 @@
 #include "../../src/editor/markdowneditor.h"
 #include "../../src/editor/markdowndocument.h"
 #include "../../src/editor/colorscheme.h"
+
 
 using namespace ghostwriter;
 
@@ -20,6 +22,8 @@ private slots:
     void nestedTaskList();
     void topLevelListExit();
     void unrelatedListBoundary();
+    void nestedListWithParagraph();
+    void nestedListWithBlankLine();
 };
 
 void MarkdownEditorTest::nestedNumberedList()
@@ -170,6 +174,90 @@ void MarkdownEditorTest::unrelatedListBoundary()
 	    "\n"
 	    "   - Current item\n"
 	    "   \n";
+
+    QCOMPARE(editor.toPlainText(), expected);
+}
+
+void MarkdownEditorTest::nestedListWithParagraph()
+{
+    MarkdownDocument document;
+    ColorScheme colors{};
+    MarkdownEditor editor(&document, colors);
+
+    editor.setPlainText(
+        "1. Java\n"
+        "\n"
+        "   Explanation about Java.\n"
+        "\n"
+        "   1. Variables\n"
+        "      1. int\n"
+        "      2. double"
+    );
+
+    QTextCursor cursor = editor.textCursor();
+    cursor.movePosition(QTextCursor::End);
+    editor.setTextCursor(cursor);
+
+    editor.show();
+    editor.setFocus();
+
+    QTest::keyClick(&editor, Qt::Key_Return);
+    QTest::keyClick(&editor, Qt::Key_Return);
+
+    const QString expected =
+        "1. Java\n"
+        "\n"
+        "   Explanation about Java.\n"
+        "\n"
+        "   1. Variables\n"
+        "      1. int\n"
+        "      2. double\n"
+        "   2. ";
+
+    QCOMPARE(editor.toPlainText(), expected);
+}
+
+void MarkdownEditorTest::nestedListWithBlankLine()
+{
+    MarkdownDocument document;
+    ColorScheme colors{};
+    MarkdownEditor editor(&document, colors);
+
+    editor.setPlainText(
+        "1. Java\n"
+        "   1. Variables\n"
+        "\n"
+        "      1. int\n"
+        "      2. double"
+    );
+
+    MarkdownAST *ast = document.markdownAST();
+
+    QVERIFY2(ast != nullptr, "Markdown AST was not initialized");
+
+
+    QTextCursor cursor = editor.textCursor();
+    cursor.movePosition(QTextCursor::End);
+    editor.setTextCursor(cursor);
+
+    editor.show();
+    editor.setFocus();
+
+    QTest::keyClick(&editor, Qt::Key_Return);
+
+
+    QVERIFY(document.markdownAST() != nullptr);
+
+
+    QTest::keyClick(&editor, Qt::Key_Return);
+
+    const QString expected =
+        "1. Java\n"
+        "   1. Variables\n"
+        "\n"
+        "      1. int\n"
+        "      2. double\n"
+        "   2. ";
 
     QCOMPARE(editor.toPlainText(), expected);
 }
