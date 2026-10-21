@@ -1978,6 +1978,54 @@ void MarkdownEditorPrivate::handleCarriageReturn()
     }
 
     if (endList) {
+        // On an empty nested item, Enter should return to the parent list
+        // instead of leaving every level at once.
+        const QString currentLine = cursor.block().text();
+        const auto currentMatch = QRegularExpression(
+            QStringLiteral("^([ \\t]*)(?:([0-9]+)([.)])|([-+*])(?:[ \\t]+\\[[ xX]\\])?)[ \\t]+$")
+        ).match(currentLine);
+        bool returnedToParent = false;
+
+        if (currentMatch.hasMatch() && !cursor.hasSelection()) {
+            const int depth = currentMatch.captured(1).length();
+            const QRegularExpression parentPattern(
+                QStringLiteral("^([ \\t]*)(?:([0-9]+)([.)])|([-+*])([ \\t]+\\[[ xX]\\])?)[ \\t]+")
+            );
+            for (QTextBlock parent = cursor.block().previous();
+                 parent.isValid(); parent = parent.previous()) {
+                const auto parentMatch = parentPattern.match(parent.text());
+                if (!parentMatch.hasMatch()) {
+                    continue;
+                }
+                const int parentDepth = parentMatch.captured(1).length();
+                if (parentDepth >= depth) {
+                    continue;
+                }
+
+                QString nextPrefix = parentMatch.captured(1);
+                if (!parentMatch.captured(2).isEmpty()) {
+                    nextPrefix += QString::number(parentMatch.captured(2).toInt() + 1);
+                    nextPrefix += parentMatch.captured(3) + QStringLiteral(" ");
+                } else {
+                    nextPrefix += parentMatch.captured(4);
+                    if (!parentMatch.captured(5).isEmpty()) {
+                        nextPrefix += QStringLiteral(" [ ]");
+                    }
+                    nextPrefix += QStringLiteral(" ");
+                }
+                cursor.movePosition(QTextCursor::StartOfBlock);
+                cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+                cursor.insertText(nextPrefix);
+                q->setTextCursor(cursor);
+                q->ensureCursorVisible();
+                returnedToParent = true;
+                break;
+            }
+        }
+        if (returnedToParent) {
+            return;
+        }
+        // No parent list: preserve Ghostwriter's normal exit behavior.
         autoInsertText = priorIndentation();
         cursor.movePosition(QTextCursor::StartOfBlock);
         cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
