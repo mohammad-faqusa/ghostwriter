@@ -1993,10 +1993,14 @@ void MarkdownEditorPrivate::handleCarriageReturn()
             );
             for (QTextBlock parent = cursor.block().previous();
                  parent.isValid(); parent = parent.previous()) {
-                const auto parentMatch = parentPattern.match(parent.text());
-                if (!parentMatch.hasMatch()) {
-                    continue;
-                }
+                const QString parentLine = parent.text();
+		const auto parentMatch = parentPattern.match(parentLine);
+
+		if (!parentMatch.hasMatch()) {
+		    // An empty line, heading, or paragraph may indicate
+		    // the boundary of the current list.
+		    break;
+		}
                 const int parentDepth = parentMatch.captured(1).length();
                 if (parentDepth >= depth) {
                     continue;
