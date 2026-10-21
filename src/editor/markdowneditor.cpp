@@ -2010,15 +2010,22 @@ void MarkdownEditorPrivate::handleCarriageReturn()
                 while (!stack.isEmpty()) {
                     MarkdownNode *node = stack.takeLast();
 
+                    // Ignore branches that do not contain the cursor line.
+                    if (node->startLine() > currentLineNumber ||
+                        (node->endLine() != 0 &&
+                        node->endLine() < currentLineNumber)) {
+                        continue;
+                    }
+
                     if ((node->type() == MarkdownNode::ListItem ||
-                         node->type() == MarkdownNode::TaskListItem) &&
+                        node->type() == MarkdownNode::TaskListItem) &&
                         node->startLine() == currentLineNumber) {
 
                         currentItem = node;
                     }
 
                     for (MarkdownNode *child = node->firstChild();
-                         child != nullptr; child = child->next()) {
+                        child != nullptr; child = child->next()) {
 
                         stack.append(child);
                     }
