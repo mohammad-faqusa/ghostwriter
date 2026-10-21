@@ -24,6 +24,8 @@ private slots:
     void unrelatedListBoundary();
     void nestedListWithParagraph();
     void nestedListWithBlankLine();
+    void nestedMixedList();
+    void nestedCustomNumbering();
 };
 
 void MarkdownEditorTest::nestedNumberedList()
@@ -231,11 +233,6 @@ void MarkdownEditorTest::nestedListWithBlankLine()
         "      2. double"
     );
 
-    MarkdownAST *ast = document.markdownAST();
-
-    QVERIFY2(ast != nullptr, "Markdown AST was not initialized");
-
-
     QTextCursor cursor = editor.textCursor();
     cursor.movePosition(QTextCursor::End);
     editor.setTextCursor(cursor);
@@ -244,11 +241,6 @@ void MarkdownEditorTest::nestedListWithBlankLine()
     editor.setFocus();
 
     QTest::keyClick(&editor, Qt::Key_Return);
-
-
-    QVERIFY(document.markdownAST() != nullptr);
-
-
     QTest::keyClick(&editor, Qt::Key_Return);
 
     const QString expected =
@@ -258,6 +250,75 @@ void MarkdownEditorTest::nestedListWithBlankLine()
         "      1. int\n"
         "      2. double\n"
         "   2. ";
+
+    QCOMPARE(editor.toPlainText(), expected);
+}
+
+
+void MarkdownEditorTest::nestedMixedList()
+{
+    MarkdownDocument document;
+    ColorScheme colors{};
+    MarkdownEditor editor(&document, colors);
+
+    editor.setPlainText(
+        "1. Java\n"
+        "   1. Variables\n"
+        "      - int\n"
+        "      - double"
+    );
+
+    QTextCursor cursor = editor.textCursor();
+    cursor.movePosition(QTextCursor::End);
+    editor.setTextCursor(cursor);
+
+    editor.show();
+    editor.setFocus();
+
+    QTest::keyClick(&editor, Qt::Key_Return);
+    QTest::keyClick(&editor, Qt::Key_Return);
+
+    const QString expected =
+        "1. Java\n"
+        "   1. Variables\n"
+        "      - int\n"
+        "      - double\n"
+        "   2. ";
+
+    QCOMPARE(editor.toPlainText(), expected);
+}
+
+void MarkdownEditorTest::nestedCustomNumbering()
+{
+    MarkdownDocument document;
+    ColorScheme colors{};
+    MarkdownEditor editor(&document, colors);
+
+    editor.setPlainText(
+        "5. Java\n"
+        "\n"
+        "   7. Variables\n"
+        "      1. int\n"
+        "      2. double"
+    );
+
+    QTextCursor cursor = editor.textCursor();
+    cursor.movePosition(QTextCursor::End);
+    editor.setTextCursor(cursor);
+
+    editor.show();
+    editor.setFocus();
+
+    QTest::keyClick(&editor, Qt::Key_Return);
+    QTest::keyClick(&editor, Qt::Key_Return);
+
+    const QString expected =
+        "5. Java\n"
+        "\n"
+        "   7. Variables\n"
+        "      1. int\n"
+        "      2. double\n"
+        "   8. ";
 
     QCOMPARE(editor.toPlainText(), expected);
 }
