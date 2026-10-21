@@ -2013,7 +2013,7 @@ void MarkdownEditorPrivate::handleCarriageReturn()
                     // Ignore branches that do not contain the cursor line.
                     if (node->startLine() > currentLineNumber ||
                         (node->endLine() != 0 &&
-                        node->endLine() < currentLineNumber)) {
+                         node->endLine() < currentLineNumber)) {
                         continue;
                     }
 

@@ -26,6 +26,7 @@ private slots:
     void nestedListWithBlankLine();
     void nestedMixedList();
     void nestedCustomNumbering();
+    void nestedListWithMultipleSiblings();
 };
 
 void MarkdownEditorTest::nestedNumberedList()
@@ -319,6 +320,41 @@ void MarkdownEditorTest::nestedCustomNumbering()
         "      1. int\n"
         "      2. double\n"
         "   8. ";
+
+    QCOMPARE(editor.toPlainText(), expected);
+}
+
+void MarkdownEditorTest::nestedListWithMultipleSiblings()
+{
+    MarkdownDocument document;
+    ColorScheme colors{};
+    MarkdownEditor editor(&document, colors);
+
+    editor.setPlainText(
+        "1. Java\n"
+        "   1. Variables\n"
+        "   2. Methods\n"
+        "      1. public\n"
+        "      2. private"
+    );
+
+    QTextCursor cursor = editor.textCursor();
+    cursor.movePosition(QTextCursor::End);
+    editor.setTextCursor(cursor);
+
+    editor.show();
+    editor.setFocus();
+
+    QTest::keyClick(&editor, Qt::Key_Return);
+    QTest::keyClick(&editor, Qt::Key_Return);
+
+    const QString expected =
+        "1. Java\n"
+        "   1. Variables\n"
+        "   2. Methods\n"
+        "      1. public\n"
+        "      2. private\n"
+        "   3. ";
 
     QCOMPARE(editor.toPlainText(), expected);
 }
