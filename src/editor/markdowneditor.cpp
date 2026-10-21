@@ -1978,157 +1978,133 @@ void MarkdownEditorPrivate::handleCarriageReturn()
     }
 
     if (endList) {
-    const QString currentLine = cursor.block().text();
+        const QString currentLine = cursor.block().text();
 
-    const QRegularExpression emptyItemPattern(
-        QStringLiteral(
-            "^([ \\t]*)(?:([0-9]+)([.)])|([-+*])"
-            "(?:[ \\t]+\\[[ xX]\\])?)[ \\t]+$"
-        )
-    );
+        const QRegularExpression emptyItemPattern(
+            QStringLiteral("^([ \\t]*)(?:([0-9]+)([.)])|([-+*])"
+                           "(?:[ \\t]+\\[[ xX]\\])?)[ \\t]+$"));
 
-    const QRegularExpression parentPattern(
-        QStringLiteral(
-            "^([ \\t]*)(?:([0-9]+)([.)])|([-+*])"
-            "([ \\t]+\\[[ xX]\\])?)[ \\t]+"
-        )
-    );
+        const QRegularExpression parentPattern(
+            QStringLiteral("^([ \\t]*)(?:([0-9]+)([.)])|([-+*])"
+                           "([ \\t]+\\[[ xX]\\])?)[ \\t]+"));
 
-    bool returnedToParent = false;
+        bool returnedToParent = false;
 
-    if (emptyItemPattern.match(currentLine).hasMatch()
-        && !cursor.hasSelection()) {
+        if (emptyItemPattern.match(currentLine).hasMatch() &&
+            !cursor.hasSelection()) {
 
-        auto *document =
-            static_cast<MarkdownDocument *>(q->document());
+            auto *document = static_cast<MarkdownDocument *>(q->document());
 
-        MarkdownAST *ast = document->markdownAST();
+            MarkdownAST *ast = document->markdownAST();
 
-        if (ast && ast->root()) {
-            const int currentLineNumber =
-                cursor.blockNumber() + 1;
+            if (ast && ast->root()) {
+                const int currentLineNumber = cursor.blockNumber() + 1;
 
-            MarkdownNode *currentItem = nullptr;
+                MarkdownNode *currentItem = nullptr;
 
-            // Find the list item corresponding to the
-            // current cursor line in the Markdown AST.
-            QVector<MarkdownNode *> stack;
-            stack.append(ast->root());
+                // Find the list item corresponding to the
+                // current cursor line in the Markdown AST.
+                QVector<MarkdownNode *> stack;
+                stack.append(ast->root());
 
-            while (!stack.isEmpty()) {
-                MarkdownNode *node = stack.takeLast();
+                while (!stack.isEmpty()) {
+                    MarkdownNode *node = stack.takeLast();
 
-                if ((node->type() == MarkdownNode::ListItem
-                     || node->type() == MarkdownNode::TaskListItem)
-                    && node->startLine() == currentLineNumber) {
+                    if ((node->type() == MarkdownNode::ListItem ||
+                         node->type() == MarkdownNode::TaskListItem) &&
+                        node->startLine() == currentLineNumber) {
 
-                    currentItem = node;
+                        currentItem = node;
+                    }
+
+                    for (MarkdownNode *child = node->firstChild();
+                         child != nullptr; child = child->next()) {
+
+                        stack.append(child);
+                    }
                 }
 
-                for (MarkdownNode *child = node->firstChild();
-                     child != nullptr;
-                     child = child->next()) {
+                if (currentItem) {
+                    MarkdownNode *currentList = currentItem->parent();
 
-                    stack.append(child);
-                }
-            }
+                    MarkdownNode *parentItem =
+                        currentList ? currentList->parent() : nullptr;
 
-            if (currentItem) {
-                MarkdownNode *currentList =
-                    currentItem->parent();
+                    MarkdownNode *parentList =
+                        parentItem ? parentItem->parent() : nullptr;
 
-                MarkdownNode *parentItem =
-                    currentList ? currentList->parent() : nullptr;
+                    const bool validParent =
+                        parentItem && parentList &&
+                        (parentItem->type() == MarkdownNode::ListItem ||
+                         parentItem->type() == MarkdownNode::TaskListItem) &&
+                        (parentList->type() == MarkdownNode::NumberedList ||
+                         parentList->type() == MarkdownNode::BulletList);
 
-                MarkdownNode *parentList =
-                    parentItem ? parentItem->parent() : nullptr;
+                    if (validParent) {
+                        QTextBlock parentBlock =
+                            q->document()->findBlockByNumber(
+                                parentItem->startLine() - 1);
 
-                const bool validParent =
-                    parentItem
-                    && parentList
-                    && (parentItem->type() == MarkdownNode::ListItem
-                        || parentItem->type() ==
-                           MarkdownNode::TaskListItem)
-                    && (parentList->type() ==
-                            MarkdownNode::NumberedList
-                        || parentList->type() ==
-                            MarkdownNode::BulletList);
+                        if (parentBlock.isValid()) {
+                            const auto match =
+                                parentPattern.match(parentBlock.text());
 
-                if (validParent) {
-                    QTextBlock parentBlock =
-                        q->document()->findBlockByNumber(
-                            parentItem->startLine() - 1
-                        );
+                            if (match.hasMatch()) {
+                                QString nextPrefix = match.captured(1);
 
-                    if (parentBlock.isValid()) {
-                        const auto match =
-                            parentPattern.match(parentBlock.text());
+                                if (!match.captured(2).isEmpty()) {
+                                    const int nextNumber =
+                                        match.captured(2).toInt() + 1;
 
-                        if (match.hasMatch()) {
-                            QString nextPrefix = match.captured(1);
+                                    nextPrefix += QString::number(nextNumber);
 
-                            if (!match.captured(2).isEmpty()) {
-                                const int nextNumber =
-                                    match.captured(2).toInt() + 1;
+                                    nextPrefix += match.captured(3);
+                                    nextPrefix += QStringLiteral(" ");
+                                } else {
+                                    nextPrefix += match.captured(4);
 
-                                nextPrefix +=
-                                    QString::number(nextNumber);
+                                    if (!match.captured(5).isEmpty()) {
+                                        nextPrefix += QStringLiteral(" [ ]");
+                                    }
 
-                                nextPrefix += match.captured(3);
-                                nextPrefix += QStringLiteral(" ");
-                            } else {
-                                nextPrefix += match.captured(4);
-
-                                if (!match.captured(5).isEmpty()) {
-                                    nextPrefix +=
-                                        QStringLiteral(" [ ]");
+                                    nextPrefix += QStringLiteral(" ");
                                 }
 
-                                nextPrefix += QStringLiteral(" ");
+                                // All AST information is extracted
+                                // before modifying the document.
+                                cursor.movePosition(QTextCursor::StartOfBlock);
+
+                                cursor.movePosition(QTextCursor::EndOfBlock,
+                                                    QTextCursor::KeepAnchor);
+
+                                cursor.insertText(nextPrefix);
+
+                                q->setTextCursor(cursor);
+                                q->ensureCursorVisible();
+
+                                returnedToParent = true;
                             }
-
-                            // All AST information is extracted
-                            // before modifying the document.
-                            cursor.movePosition(
-                                QTextCursor::StartOfBlock
-                            );
-
-                            cursor.movePosition(
-                                QTextCursor::EndOfBlock,
-                                QTextCursor::KeepAnchor
-                            );
-
-                            cursor.insertText(nextPrefix);
-
-                            q->setTextCursor(cursor);
-                            q->ensureCursorVisible();
-
-                            returnedToParent = true;
                         }
                     }
                 }
             }
         }
+
+        if (returnedToParent) {
+            return;
+        }
+
+        // No parent list was found.
+        // Preserve Ghostwriter's original exit behavior.
+        autoInsertText = priorIndentation();
+
+        cursor.movePosition(QTextCursor::StartOfBlock);
+
+        cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+
+        cursor.insertText(autoInsertText);
+        autoInsertText = "";
     }
-
-    if (returnedToParent) {
-        return;
-    }
-
-    // No parent list was found.
-    // Preserve Ghostwriter's original exit behavior.
-    autoInsertText = priorIndentation();
-
-    cursor.movePosition(QTextCursor::StartOfBlock);
-
-    cursor.movePosition(
-        QTextCursor::EndOfBlock,
-        QTextCursor::KeepAnchor
-    );
-
-    cursor.insertText(autoInsertText);
-    autoInsertText = "";
-}
 
     cursor.insertText(QString("\n") + autoInsertText);
     q->ensureCursorVisible();
